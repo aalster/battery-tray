@@ -53,7 +53,8 @@ class App:
                     "charging": bool(r and r.charging),
                     "type": devtype.resolve(d), "detected": devtype.resolve(dict(d, icon="")), "icon": d.get("icon", ""),
                     "low_percent": d.get("low_percent"), "warn_percent": d.get("warn_percent"),
-                    "linger_minutes": d.get("linger_minutes"), "show_when": d.get("show_when"),
+                    "linger_minutes": d.get("linger_minutes"), "show_offline": d.get("show_offline"),
+                    "show_when": d.get("show_when"),
                     "levels": self._levels(key),
                 })
             return out
@@ -130,13 +131,25 @@ class App:
                     # Looks the same as when connected: a mouse that fell asleep must not make its icon flicker.
                     wanted[name] = (devtype.resolve(devices[key]), percent, self._fill(key, percent, theme), theme,
                                     f"{name}: {percent}% (відключено)")
+                continue
+            offline = [k for k in keys if self._option(k, "show_offline")]
+            if offline:
+                # Gone for longer than that: the icon stays, dimmed, with the last charge seen (None if never seen).
+                key = max(offline, key=lambda k: self.last_live.get(k, (None, float("-inf")))[1])
+                percent = devices[key].get("last_percent")
+                if self._shown(key, percent):
+                    dim = icon.dimmed(theme)
+                    title = f"{name}: не підключено" if percent is None else f"{name}: {percent}% (не підключено)"
+                    wanted[name] = (devtype.resolve(devices[key]), percent, dim, dim, title)
         return wanted
 
-    def _shown(self, key: str, percent: int) -> bool:
-        """Whether the device's icon is wanted at this charge."""
+    def _shown(self, key: str, percent: int | None) -> bool:
+        """Whether the device's icon is wanted at this charge. An unknown charge counts as a normal one."""
         when = self._option(key, "show_when")
+        if when not in ("low", "warn"):
+            return True
         low, warn = self._levels(key)
-        return percent <= (low if when == "low" else warn) or when not in ("low", "warn")
+        return percent is not None and percent <= (low if when == "low" else warn)
 
     def _fill(self, key: str, percent: int, normal: str) -> str:
         low, warn = self._levels(key)
@@ -156,6 +169,9 @@ class App:
                     new = True
                 if r.type and self.settings["devices"][r.key].get("type") != r.type:
                     self.settings["devices"][r.key]["type"] = r.type
+                    new = True
+                if r.percent is not None and self.settings["devices"][r.key].get("last_percent") != r.percent:
+                    self.settings["devices"][r.key]["last_percent"] = r.percent  # outlives a restart
                     new = True
                 if r.connected and r.percent is not None:
                     self.last_live[r.key] = (r.percent, now)

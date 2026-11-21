@@ -32,6 +32,11 @@ def theme_color() -> str:
     return "#000000" if light else "#FFFFFF"
 
 
+def dimmed(color: str) -> str:
+    """The colour of the icon of a device that is not connected: the same one, mostly transparent."""
+    return color + "99"  # 40% transparent
+
+
 _BOLT = ((37, 20), (22, 39), (31, 39), (28, 52), (43, 33), (34, 33))
 
 

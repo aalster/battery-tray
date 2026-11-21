@@ -24,6 +24,7 @@ COLOR_TITLE = "Колір батареї"
 # Settings a device can override: (name, title, choices, how a value is written)
 OPTIONS = (
     ("linger_minutes", "Показувати після відключення ще", LINGER_CHOICES, "{} хв".format),
+    ("show_offline", "Показувати, коли пристрій не підключено", (False, True), lambda v: "Так" if v else "Ні"),
 )
 
 LIGHT = dict(bg="#F3F3F3", card="#FFFFFF", border="#E0E0E0", hover="#ABABAB", text="#1B1B1B", muted="#5F5F5F", dim="#9B9B9B",

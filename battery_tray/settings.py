@@ -10,10 +10,12 @@ DEFAULTS = {
     "low_percent": 20,     # the battery in the tray is red up to this charge
     "warn_percent": 40,    # ... and orange up to this one
     "linger_minutes": 5,   # keep showing a device this long after it disconnects
+    "show_offline": False, # after that, keep the icon, dimmed, for as long as the device stays disconnected
     "show_when": "always", # show a device's icon: "low" - only while red, "warn" - red or orange, "always"
     "theme": "auto",       # the window's look: "auto" - as in Windows, "light", "dark"
-    # key -> {"name", "kind", "label", "enabled", "type" (detected), "icon" (chosen type),
-    #         "low_percent" / "warn_percent" / "linger_minutes" / "show_when" (optional, override the defaults above)}
+    # key -> {"name", "kind", "label", "enabled", "type" (detected), "icon" (chosen type), "last_percent" (last charge seen),
+    #         "low_percent" / "warn_percent" / "linger_minutes" / "show_offline" / "show_when" (optional, override the
+    #         defaults above)}
     "devices": {},
 }
 
