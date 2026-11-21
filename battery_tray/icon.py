@@ -35,6 +35,17 @@ def theme_color() -> str:
 _BOLT = ((37, 20), (22, 39), (31, 39), (28, 52), (43, 33), (34, 33))
 
 
+def bolt(color: str, height: int) -> Image.Image:
+    """The lightning bolt of the application's icon on its own, for the charging mark in the window."""
+    ss = 8
+    xs, ys = [x for x, _ in _BOLT], [y for _, y in _BOLT]
+    k = height * ss / (max(ys) - min(ys))
+    width = round((max(xs) - min(xs)) * k / ss)
+    img = Image.new("RGBA", (width * ss, height * ss), (0, 0, 0, 0))
+    ImageDraw.Draw(img).polygon([((x - min(xs)) * k, (y - min(ys)) * k) for x, y in _BOLT], fill=color)
+    return img.resize((width, height), Image.LANCZOS)
+
+
 def app_icon(color: str, size: int = SIZE, back: str | None = None) -> Image.Image:
     """The application's own icon: a solid upright battery with a lightning bolt cut out of it.
 

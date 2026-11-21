@@ -99,6 +99,8 @@ class SettingsWindow:
                     return
                 if command == "settings":
                     self.show()
+                if command == "update" and self.visible:
+                    self._update()
         except queue.Empty:
             pass
         self.root.after(200, self._pump)
@@ -123,7 +125,8 @@ class SettingsWindow:
         self.root.withdraw()
 
     def _apply_theme(self):
-        dark = _dark_mode()
+        theme = self.app.settings["theme"]
+        dark = theme == "dark" if theme in ("light", "dark") else _dark_mode()
         self._set_icons(icon.theme_color(), "#FFFFFF" if dark else "#000000")
         if dark == self.dark:
             return
@@ -154,6 +157,11 @@ class SettingsWindow:
             user32.SendMessageW(hwnd, 0x0080, which, handle)  # WM_SETICON
 
     def _tick(self):
+        self._update()
+        self.tick_id = self.root.after(1000, self._tick)
+
+    def _update(self):
+        """Redraws the page if the devices changed."""
         snap = self.app.snapshot()
         if snap != self.snap and not self.drag:
             self.snap = snap
@@ -163,7 +171,6 @@ class SettingsWindow:
                     self.canvas.itemconfigure(self.status_item, text=self._status(d, percent=True))
             else:
                 self.render()
-        self.tick_id = self.root.after(1000, self._tick)
 
     # --- navigation ---
 
@@ -314,6 +321,12 @@ class SettingsWindow:
             self.images[key] = (ImageTk.PhotoImage(img.resize((w, h), Image.LANCZOS)), 0)
         return self.images[key][0]
 
+    def _bolt_image(self, color: str):
+        key = ("bolt", color)
+        if key not in self.images:
+            self.images[key] = (ImageTk.PhotoImage(icon.bolt(color, self.px(18))), 0)
+        return self.images[key][0]
+
     # --- building blocks ---
 
     def panel(self, y: int, h: int):
@@ -350,7 +363,8 @@ class SettingsWindow:
         if value:
             self.text(m + w - right, y + h // 2, value, 16, True, value_color, anchor="e")
             if bolt_w:
-                self.glyph(m + w - right - value_w - px(10), y + h // 2 + px(1), "\ue945", 14, value_color)
+                self.canvas.create_image(m + w - right - value_w - px(7), y + h // 2 + px(1),
+                                         image=self._bolt_image(self.colors[value_color]), anchor="e")
         if toggle:
             self.toggle(y + h // 2, *toggle)  # its click area is registered first, so it wins over the card's
             self.hit(m, y, m + w, y + h, command,
@@ -568,6 +582,8 @@ class SettingsWindow:
             low, warn = d["levels"]
             if not d["connected"] or d["percent"] is None:
                 color = "dim"
+            elif d["charging"]:
+                color = "good"
             else:
                 color = "low" if d["percent"] <= low else "warn" if d["percent"] <= warn else "text"
             self.card(y, devtype.TYPES[d["type"]][1], d["title"], self._status(d),
@@ -712,7 +728,15 @@ class SettingsWindow:
             self.panel(y, px(56))
             self.text(m + px(16), y + px(18), "Запускати разом із Windows", 13)
             self.toggle(y + px(28), autostart.is_enabled(), lambda v: (autostart.toggle(), self.render()))
-            y += px(56) + px(22)
+            y += px(56) + px(14)
+
+        def theme(value):
+            self.app.update_settings(theme=value)
+            self._apply_theme()
+            self.changed()
+
+        y = self.choices(y, [("Тема", [("auto", "Авто"), ("light", "Світла"), ("dark", "Темна")], s["theme"], theme, None)])
+        y += px(22)
         self.text(m, y, "Типові значення", 12, True, "muted")
         self.text(px(WIDTH) - m, y + px(1), "для пристрою змінюються на його сторінці", 11, color="dim", anchor="ne")
         y += px(26)

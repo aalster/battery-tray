@@ -24,6 +24,7 @@ class App:
         self.current: dict[str, Reading] = {}  # latest poll
         self.last_live = {}                    # key -> (percent, monotonic time last seen connected)
         self.icons = {}                        # display name -> TrayIcon
+        self.rescan = False                    # a full scan for new devices was asked for
         self.wake = threading.Event()
         self.stopping = threading.Event()
         self.ui_queue = queue.Queue()
@@ -58,8 +59,10 @@ class App:
             return out
 
     def refresh_now(self):
-        """Re-reads the charge right away and looks for new devices."""
-        self.logitech.polls = 0  # makes the next poll a full scan
+        """Re-reads the charge right away, then looks for new devices."""
+        # The scan for new devices waits seconds for the silent receiver slots, so the known devices are read first.
+        self.logitech.polls = 1  # makes the next poll a quick one
+        self.rescan = True
         self.wake.set()
 
     def update_device(self, key: str, **changes):
@@ -184,6 +187,11 @@ class App:
                 self.refresh()
             except Exception:
                 log.exception("refresh failed")
+            self.ui_queue.put("update")  # the window shows the new state without waiting for its timer
+            if self.rescan:
+                self.rescan = False
+                self.logitech.polls = 0  # makes the next poll a full scan
+                continue
             if first and not any(d.get("enabled") for d in self.settings["devices"].values()):
                 self.ui_queue.put("settings")  # nothing chosen yet: let the user pick
             first = False
