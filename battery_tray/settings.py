@@ -7,9 +7,13 @@ PATH = Path(os.environ.get("APPDATA", Path.home())) / "battery-tray" / "settings
 
 DEFAULTS = {
     "poll_seconds": 30,
-    "low_percent": 20,
+    "low_percent": 20,     # the battery in the tray is red up to this charge
+    "warn_percent": 40,    # ... and orange up to this one
     "linger_minutes": 5,   # keep showing a device this long after it disconnects
-    "devices": {},         # key -> {"name", "kind", "label", "enabled"}
+    "show_when": "always", # show a device's icon: "low" - only while red, "warn" - red or orange, "always"
+    # key -> {"name", "kind", "label", "enabled", "type" (detected), "icon" (chosen type),
+    #         "low_percent" / "warn_percent" / "linger_minutes" / "show_when" (optional, override the defaults above)}
+    "devices": {},
 }
 
 

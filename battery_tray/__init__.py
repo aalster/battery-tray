@@ -9,3 +9,4 @@ class Reading:
     percent: int | None
     connected: bool = True
     charging: bool = False
+    type: str = ""          # detected device type, a key of devtype.TYPES ("" = unknown)

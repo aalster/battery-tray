@@ -1,17 +1,20 @@
-"""Renders the tray icon: just the number, as large as it fits."""
+"""Renders the tray icon: the device glyph with a vertical battery over its right side."""
 import winreg
 
 from PIL import Image, ImageDraw, ImageFont
 
-SIZE = 64
-MAX_STRETCH = 1.6
+SIZE = 64  # one tray pixel at 100% scale is 4 units
 LOW_COLOR = "#FF5A5A"
-CHARGING_COLOR = "#6EE06E"
-STALE_COLOR = "#8C8C8C"
+WARN_COLOR = "#FFA033"
+CHARGING_COLOR = "#5FD35F"
+
+BATTERY_LEFT = 36    # the battery covers the lower right part of the glyph
+BATTERY_TOP = 16     # the cap sits above it
+LINE = 4
 
 
-def _font(size: int):
-    for name in ("segoeuib.ttf", "arialbd.ttf"):
+def _glyph_font(size: int):
+    for name in ("SegoeIcons.ttf", "segmdl2.ttf"):
         try:
             return ImageFont.truetype(name, size)
         except OSError:
@@ -29,17 +32,48 @@ def theme_color() -> str:
     return "#000000" if light else "#FFFFFF"
 
 
-def render(text: str, color: str) -> Image.Image:
-    font = _font(96)
-    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
-    left, top, right, bottom = probe.textbbox((0, 0), text, font=font)
-    glyphs = Image.new("RGBA", (right - left, bottom - top), (0, 0, 0, 0))
-    ImageDraw.Draw(glyphs).text((-left, -top), text, font=font, fill=color)
-    # Fill the full width; stretch vertically (within reason) so digits stay readable at 16px.
-    scale = SIZE / glyphs.width
-    height = min(SIZE, round(glyphs.height * scale * MAX_STRETCH))
-    width = SIZE if height >= glyphs.height * scale else round(glyphs.width * height / glyphs.height)
-    glyphs = glyphs.resize((width, height), Image.LANCZOS)
+_BOLT = ((37, 20), (22, 39), (31, 39), (28, 52), (43, 33), (34, 33))
+
+
+def app_icon(color: str, size: int = SIZE, back: str | None = None) -> Image.Image:
+    """The application's own icon: a solid upright battery with a lightning bolt cut out of it.
+
+    `back` puts it on a rounded tile, for places where the background is unknown (the exe file).
+    """
+    ss = 8  # drawn large and scaled down: Pillow does not antialias shapes
+    img = Image.new("RGBA", (64 * ss, 64 * ss), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    def box(*xy):
+        return tuple(v * ss for v in xy)
+
+    draw.rounded_rectangle(box(13, 9, 51, 62), 9 * ss, fill=color)
+    draw.rounded_rectangle(box(24, 2, 40, 7), 2 * ss, fill=color)
+    draw.polygon([(x * ss, y * ss) for x, y in _BOLT], fill=(0, 0, 0, 0))
+    if back:
+        tile = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        ImageDraw.Draw(tile).rounded_rectangle(box(0, 0, 64, 64), 14 * ss, fill=back)
+        inner = img.resize((44 * ss, 44 * ss), Image.LANCZOS)
+        tile.alpha_composite(inner, (10 * ss, 10 * ss))
+        img = tile
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def render(glyph: str, percent: int | None, fill: str, outline: str) -> Image.Image:
+    """`fill` colours the charge level inside the battery; `outline` draws the glyph and the battery body."""
     img = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    img.paste(glyphs, ((SIZE - width) // 2, (SIZE - height) // 2))
+    draw = ImageDraw.Draw(img)
+    # The stroke thickens the hairline glyphs, which otherwise fade away at 16px.
+    draw.text((28, 30), glyph, font=_glyph_font(58), fill=outline, anchor="mm", stroke_width=1, stroke_fill=outline)
+
+    left, right, bottom, cap = BATTERY_LEFT, SIZE - 1, SIZE - 1, BATTERY_TOP - 6
+    # Clear a thin gap around the battery so it reads as lying on top of the glyph.
+    draw.rectangle((left - 3, BATTERY_TOP - 3, right, bottom), fill=(0, 0, 0, 0))
+    draw.rectangle((left + 5, cap - 3, right - 5, BATTERY_TOP), fill=(0, 0, 0, 0))
+    draw.rectangle((left + 8, cap, right - 8, BATTERY_TOP), fill=outline)  # cap
+    draw.rectangle((left, BATTERY_TOP, right, bottom), outline=outline, width=LINE)
+    if percent:
+        inner = bottom - LINE - (BATTERY_TOP + LINE) + 1
+        level = max(LINE, round(inner * min(percent, 100) / 100))
+        draw.rectangle((left + LINE, bottom - LINE - level + 1, right - LINE, bottom - LINE), fill=fill)
     return img

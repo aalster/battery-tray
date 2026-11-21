@@ -4,7 +4,7 @@ import time
 
 import hid
 
-from . import Reading
+from . import Reading, devtype
 
 log = logging.getLogger(__name__)
 
@@ -85,6 +85,11 @@ class _Link:
             name += chunk[: length - len(name)]
         return name.decode("ascii", "replace")
 
+    def device_type(self, idx: int) -> str:
+        fi = self.feature_index(idx, FEATURE_NAME)
+        r = self.request(idx, fi, 2) if fi else None
+        return devtype.from_hidpp(r[0]) if r else ""
+
 
 class LogitechSource:
     """Returns only the devices that answer right now."""
@@ -140,7 +145,12 @@ class LogitechSource:
             else:
                 return None  # device has no supported battery feature
             name = link.device_name(idx) or f"Logitech #{idx}"
-            info = self.known[key] = {"name": name, "feature": feature, "index": fi}
+            try:
+                kind = link.device_type(idx)
+            except HidppError:
+                kind = ""
+            info = self.known[key] = {"name": name, "feature": feature, "index": fi,
+                                      "type": kind or devtype.from_name(name)}
             log.info("found %s (feature 0x%04X)", name, feature)
         if info["feature"] == FEATURE_UNIFIED_BATTERY:
             r = link.request(idx, info["index"], 1)
@@ -152,4 +162,4 @@ class LogitechSource:
             if r is None:
                 return None
             percent, charging = r[0], r[2] in (1, 2, 3, 4)
-        return Reading(f"logi:{info['name']}", info["name"], "Logitech", percent, charging=charging)
+        return Reading(f"logi:{info['name']}", info["name"], "Logitech", percent, charging=charging, type=info["type"])

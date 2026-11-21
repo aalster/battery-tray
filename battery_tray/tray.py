@@ -1,5 +1,6 @@
 """One tray icon per device, each with a stable identity so Windows remembers its position."""
 import ctypes
+import sys
 import threading
 import uuid
 
@@ -18,7 +19,8 @@ class _GuidIcon(pystray.Icon):
     """
 
     def __init__(self, identity: str, *args, **kwargs):
-        raw = uuid.uuid5(_NAMESPACE, identity).bytes_le
+        # Windows ties a GUID to the path of the executable that registered it, so the path is part of it.
+        raw = uuid.uuid5(_NAMESPACE, f"{identity}\0{sys.executable.lower()}").bytes_le
         self._guid = win32.NOTIFYICONDATAW.GUID.from_buffer_copy(raw)
         self._use_guid = True
         super().__init__(*args, **kwargs)
@@ -54,13 +56,16 @@ class TrayIcon:
 
     def _run(self, identity, image, ready):
         # pystray creates the window in the constructor, so it must live in the loop's thread.
+        from .app import MAIN
+
         menu = pystray.Menu(
             pystray.MenuItem(lambda _: self.title, None, enabled=False),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Приховати цей пристрій", lambda: self.app.hide(identity), visible=identity != MAIN),
             pystray.MenuItem("Налаштування…", lambda: self.app.ui_queue.put("settings"), default=True),
-            pystray.MenuItem("Оновити зараз", lambda: self.app.wake.set()),
+            pystray.MenuItem("Оновити зараз", lambda: self.app.refresh_now()),
             pystray.MenuItem("Запускати разом із Windows", lambda: autostart.toggle(),
-                             checked=lambda _: autostart.is_enabled()),
+                             checked=lambda _: autostart.is_enabled(), visible=autostart.AVAILABLE),
             pystray.MenuItem("Вихід", lambda: self.app.quit()),
         )
         self.icon = _GuidIcon(identity, "battery-tray", image, self.title, menu)
